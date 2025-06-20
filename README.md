@@ -1,2 +1,2 @@
-# sandbox
-Repository for testing and experimentation
+# Lidar Grade Analysis App
+This Lidar Grade Analysis tool is a lightweight web application designed to provide quick elevation analysis for any area in Vermont. Users can define an area of interest by drawing a polygon on the map and the application will identify the highest and lowest ground elevation points in the immediate vicinity outside that polygon. This is useful for tasks such as preliminary site analysis, drainage planning, and understanding the local topography around a structure.
