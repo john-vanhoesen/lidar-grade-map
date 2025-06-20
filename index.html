@@ -32,13 +32,6 @@
         .popup-table { width: 100%; border-collapse: collapse; }
         .popup-table td { padding: 4px 8px; border: 1px solid #e2e8f0; }
         .popup-table td:first-child { font-weight: bold; background-color: #f8fafc; }
-        .docs-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #1e293b; }
-        .docs-content h3 { font-size: 1.25rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; color: #334155; }
-        .docs-content p, .docs-content ul { margin-bottom: 1rem; color: #475569; }
-        .docs-content ul { list-style-type: disc; padding-left: 1.5rem; }
-        .docs-content a { color: #2563eb; text-decoration: underline; }
-        .docs-content a:hover { color: #1d4ed8; }
-        .docs-content code { background-color: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -47,7 +40,7 @@
     <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-4xl">
         <div class="text-center mb-4">
             <h1 class="text-3xl font-bold text-slate-800">Lidar Grade Analysis</h1>
-            <p id="subtitle" class="text-slate-500 mt-2">Search for an address and draw a polygon to find the highest and lowest elevation outside your area of interest.</p>
+            <p id="subtitle" class="text-slate-500 mt-2">Search for an address and draw a polygon to find the highest and lowest elevation on its perimeter.</p>
         </div>
 
         <!-- Tab Controls -->
@@ -87,12 +80,12 @@
                     </thead>
                     <tbody id="results-body" class="divide-y divide-slate-200">
                         <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Local Highest Grade</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Highest Grade (on line)</td>
                             <td id="highest-grade" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
                             <td id="highest-coords" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
                         </tr>
                         <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Local Lowest Grade</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Lowest Grade (on line)</td>
                             <td id="lowest-grade" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
                             <td id="lowest-coords" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
                         </tr>
@@ -105,7 +98,7 @@
         
         <div id="docs-content" class="hidden prose max-w-none docs-content">
             <h2>About This Application</h2>
-            <p>This Lidar Grade Analysis tool is a lightweight web application designed to provide quick elevation analysis for any area in Vermont. Users can define an area of interest by drawing a polygon on the map and the application will identify the highest and lowest ground elevation points in the immediate vicinity outside that polygon. This is useful for tasks such as preliminary site analysis, drainage planning, and understanding the local topography around a structure.</p>
+            <p>This Lidar Grade Analysis tool is a lightweight web application designed to provide quick elevation analysis for any area in Vermont. Users can define an area of interest by drawing a polygon on the map and the application will identify the highest and lowest ground elevation points along the perimeter of that polygon. This is useful for tasks such as preliminary site analysis, drainage planning, and understanding the local topography around a structure.</p>
 
             <h2>Technology Stack</h2>
             <p>This application is built entirely with client-side technologies, meaning it runs completely within your web browser without needing a dedicated backend server for analysis.</p>
@@ -134,9 +127,8 @@
             
             const initialCoords = [44.0, -72.7]; 
             const initialZoom = 8;
-            const GRID_SIZE = 40;
+            const LINE_SAMPLE_POINTS = 200; // Number of points to sample along the polygon line
             const BATCH_SIZE = 25; 
-            const BOUNDS_EXPANSION_FACTOR = 0.5;
             const METERS_TO_FEET = 3.28084;
             const BUILDING_LAYER_MIN_ZOOM = 16;
             
@@ -402,8 +394,60 @@
                 return (pixelValue !== noDataValue) ? pixelValue : null;
             }
 
+             /**
+             * Samples points along a polygon's perimeter.
+             */
+            function getPointsAlongPerimeter(latLngs, numSamples) {
+                if (!latLngs || latLngs.length < 2) return [];
+
+                const points = [];
+                let totalDistance = 0;
+                const segmentDistances = [];
+
+                // Ensure the polygon is closed for calculation
+                const closedLatLngs = [...latLngs, latLngs[0]];
+
+                for (let i = 0; i < closedLatLngs.length - 1; i++) {
+                    const dist = map.distance(closedLatLngs[i], closedLatLngs[i+1]);
+                    segmentDistances.push(dist);
+                    totalDistance += dist;
+                }
+
+                if (totalDistance === 0) return [];
+                
+                const interval = totalDistance / numSamples;
+                let distanceCovered = 0;
+                let segmentIndex = 0;
+                let distanceIntoSegment = 0;
+
+                points.push({lat: closedLatLngs[0].lat, lng: closedLatLngs[0].lng});
+
+                for(let i = 1; i < numSamples; i++) {
+                    const targetDistance = i * interval;
+                    
+                    while(distanceCovered + segmentDistances[segmentIndex] < targetDistance) {
+                        distanceCovered += segmentDistances[segmentIndex];
+                        segmentIndex++;
+                        distanceIntoSegment = 0;
+                    }
+                    
+                    distanceIntoSegment = targetDistance - distanceCovered;
+                    const ratio = distanceIntoSegment / segmentDistances[segmentIndex];
+                    
+                    const start = closedLatLngs[segmentIndex];
+                    const end = closedLatLngs[segmentIndex+1];
+                    
+                    const lat = start.lat + (end.lat - start.lat) * ratio;
+                    const lng = start.lng + (end.lng - start.lng) * ratio;
+                    
+                    points.push({lat, lng});
+                }
+                
+                return points;
+            }
+
             async function analyzePolygon(polygonLayer) {
-                statusTextEl.textContent = 'Sampling points and fetching data...';
+                statusTextEl.textContent = 'Sampling points along polygon line...';
                 statusEl.className = 'text-center mb-4 p-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 animate-pulse';
                 analysisMarkers.clearLayers();
                 lastAnalysisResults = null;
@@ -414,27 +458,11 @@
                 try {
                     const bounds = polygonLayer.getBounds();
                     lastPolygonCenter = bounds.getCenter(); // Store center for Street View
-                    const latDiff = bounds.getNorth() - bounds.getSouth();
-                    const lngDiff = bounds.getEast() - bounds.getWest();
-                    const searchBounds = L.latLngBounds(
-                        [bounds.getSouth() - latDiff * BOUNDS_EXPANSION_FACTOR, bounds.getWest() - lngDiff * BOUNDS_EXPANSION_FACTOR],
-                        [bounds.getNorth() + latDiff * BOUNDS_EXPANSION_FACTOR, bounds.getEast() + lngDiff * BOUNDS_EXPANSION_FACTOR]
-                    );
-                    const [minLng, minLat] = [searchBounds.getWest(), searchBounds.getSouth()];
-                    const [maxLng, maxLat] = [searchBounds.getEast(), searchBounds.getNorth()];
-                    const lngStep = (maxLng - minLng) / (GRID_SIZE - 1);
-                    const latStep = (maxLat - minLat) / (GRID_SIZE - 1);
-                    const pointsToSample = [];
-                    for (let i = 0; i < GRID_SIZE; i++) {
-                        for (let j = 0; j < GRID_SIZE; j++) {
-                            const lat = minLat + (j * latStep);
-                            const lng = minLng + (i * lngStep);
-                            if (!isPointInPolygon({ lat, lng }, polygonLayer.getLatLngs()[0])) {
-                                pointsToSample.push({ lat, lng });
-                            }
-                        }
-                    }
-                    if (pointsToSample.length === 0) throw new Error("Could not find any points outside the polygon in the search area.");
+                    
+                    const pointsToSample = getPointsAlongPerimeter(polygonLayer.getLatLngs()[0], LINE_SAMPLE_POINTS);
+
+                    if (pointsToSample.length === 0) throw new Error("Could not sample points along the polygon line. It might be too small.");
+                    
                     let results = [];
                     for (let i = 0; i < pointsToSample.length; i += BATCH_SIZE) {
                         const batch = pointsToSample.slice(i, i + BATCH_SIZE);
@@ -479,8 +507,8 @@
                 lowestCoordsEl.textContent = `${minPoint[0].toFixed(5)}, ${minPoint[1].toFixed(5)}`;
                 const highMarker = L.marker(maxPoint).addTo(analysisMarkers);
                 const lowMarker = L.marker(minPoint).addTo(analysisMarkers);
-                const highTooltip = `<b>Local Highest Point</b><br>${maxElev.toFixed(2)} m / ${maxElevFeet.toFixed(2)} ft`;
-                const lowTooltip = `<b>Local Lowest Point</b><br>${minElev.toFixed(2)} m / ${minElevFeet.toFixed(2)} ft`;
+                const highTooltip = `<b>Highest Point (on line)</b><br>${maxElev.toFixed(2)} m / ${maxElevFeet.toFixed(2)} ft`;
+                const lowTooltip = `<b>Lowest Point (on line)</b><br>${minElev.toFixed(2)} m / ${minElevFeet.toFixed(2)} ft`;
                 highMarker.bindTooltip(highTooltip, { permanent: true, direction: 'top' }).openTooltip();
                 lowMarker.bindTooltip(lowTooltip, { permanent: true, direction: 'bottom' }).openTooltip();
             }
