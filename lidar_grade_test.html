@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lidar Grade Analysis</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Leaflet.draw CSS and JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <!-- geotiff.js for COG reading -->
+    <script src="https://cdn.jsdelivr.net/npm/geotiff/dist-browser/geotiff.js"></script>
+    
+    <!-- proj4.js for coordinate projection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #map { height: 65vh; width: 100%; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .leaflet-draw-toolbar a { background-color: white !important; }
+        .leaflet-touch .leaflet-bar a { width: 34px; height: 34px; line-height: 34px;}
+        .leaflet-draw-actions a { font-size: 14px !important; }
+        .leaflet-control-layers-toggle { background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iYmxhY2siIHdpZHRoPSIxOHB4IiBoZWlnaHQ9IjE4cHgiPjxwYXRoIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDE4Yy00LjQxIDAtOC0zLjU5LTgtOHMzLjU5LTggOC04IDggMy41OSA4IDh6bS0xLTJ2LTZoLTJsMy00IDMgNGgtMnY2aC0yek0xMiAxMGwtMyA0aDJ2Nmgydi02aDJ6Ii8+PC9zdmc+); background-size: 20px 20px !important;}
+        .popup-table { width: 100%; border-collapse: collapse; }
+        .popup-table td { padding: 4px 8px; border: 1px solid #e2e8f0; }
+        .popup-table td:first-child { font-weight: bold; background-color: #f8fafc; }
+        .docs-content h2 { font-size: 1.5rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #1e293b; }
+        .docs-content h3 { font-size: 1.25rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; color: #334155; }
+        .docs-content p, .docs-content ul { margin-bottom: 1rem; color: #475569; }
+        .docs-content ul { list-style-type: disc; padding-left: 1.5rem; }
+        .docs-content a { color: #2563eb; text-decoration: underline; }
+        .docs-content a:hover { color: #1d4ed8; }
+        .docs-content code { background-color: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-4xl">
+        <div class="text-center mb-4">
+            <h1 class="text-3xl font-bold text-slate-800">Lidar Grade Analysis</h1>
+            <p id="subtitle" class="text-slate-500 mt-2">Search for an address and draw a polygon to find the highest and lowest elevation outside your area of interest.</p>
+        </div>
+
+        <!-- Tab Controls -->
+        <div class="border-b border-gray-200 mb-4">
+            <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                <button id="map-tab" type="button" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600">
+                    Application
+                </button>
+                <button id="docs-tab" type="button" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    Documentation
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="map-content">
+            <div id="status" class="text-center mb-4 p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                <p id="status-text">Use the polygon tool on the left to draw an area of interest.</p>
+                 <div id="action-buttons" class="mt-2">
+                    <button id="export-button" class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow">
+                        Export to GeoJSON
+                    </button>
+                     <button id="streetview-button" class="hidden bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow ml-2">
+                        View in Streetview
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-8 overflow-x-auto">
+                <table class="min-w-full bg-white border border-slate-200 rounded-lg">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Info</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Elevation</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Coordinates (Lat, Lng)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body" class="divide-y divide-slate-200">
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Local Highest Grade</td>
+                            <td id="highest-grade" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
+                            <td id="highest-coords" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Local Lowest Grade</td>
+                            <td id="lowest-grade" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
+                            <td id="lowest-coords" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="map"></div>
+        </div>
+        
+        <div id="docs-content" class="hidden prose max-w-none docs-content">
+            <h2>About This Application</h2>
+            <p>This Lidar Grade Analysis tool is a lightweight web application designed to provide quick elevation analysis for any area in Vermont. Users can define an area of interest by drawing a polygon on the map and the application will identify the highest and lowest ground elevation points in the immediate vicinity outside that polygon. This is useful for tasks such as preliminary site analysis, drainage planning, and understanding the local topography around a structure.</p>
+
+            <h2>Technology Stack</h2>
+            <p>This application is built entirely with client-side technologies, meaning it runs completely within your web browser without needing a dedicated backend server for analysis.</p>
+            <ul>
+                <li><strong>Mapping Library:</strong> <a href="https://leafletjs.com/" target="_blank">Leaflet.js</a> is used for the interactive map interface, along with the <a href="https://github.com/Leaflet/Leaflet.draw" target="_blank">Leaflet.draw</a> plugin for the polygon drawing tools.</li>
+                <li><strong>Geospatial Data Processing:</strong> The core of the Lidar analysis is powered by <a href="https://github.com/geotiffjs/geotiff.js" target="_blank">geotiff.js</a>, which can efficiently read data from Cloud-Optimized GeoTIFFs (COGs). Coordinate transformations are handled by <a href="https://github.com/proj4js/proj4js" target="_blank">proj4.js</a>.</li>
+                <li><strong>Styling and Layout:</strong> The user interface is styled using <a href="https://tailwindcss.com/" target="_blank">Tailwind CSS</a> for a clean and responsive design.</li>
+            </ul>
+
+            <h2>Data Sources</h2>
+            <p>All data used in this application is publicly available from the Vermont Center for Geographic Information (VCGI).</p>
+            <ul>
+                <li><strong>Elevation Data:</strong> The analysis is performed on the <code>STATEWIDE_2013-2017_70cm_DEMHF.tif</code> Digital Elevation Model (DEM). This is a high-resolution, 70cm bare-earth raster covering the state of Vermont. It is accessed as a Cloud-Optimized GeoTIFF (COG) hosted on AWS S3.</li>
+                <li><strong>Building Footprints:</strong> The optional building footprints layer is loaded on-demand from the <code>FS_VCGI_OPENDATA_STRUCTURES_POLY_SP_v1</code> ArcGIS FeatureServer. To improve performance, footprints are only fetched for the visible map area and only when zoomed in past level 16.</li>
+                <li><strong>Address Search:</strong> Address lookup is provided by the <code>GCS_E911_COMPOSITE_SP_v2</code> GeocodeServer, also hosted by VCGI.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- Configuration ---
+            const cogUrl = 'https://s3.us-east-2.amazonaws.com/vtopendata-prd/Elevation/STATEWIDE_2013-2017_70cm_DEMHF.tif';
+            const geocodeUrl = 'https://maps.vcgi.vermont.gov/arcgis/rest/services/EGC_services/GCS_E911_COMPOSITE_SP_v2/GeocodeServer';
+            const buildingsUrlBase = 'https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_OPENDATA_STRUCTURES_POLY_SP_v1/FeatureServer/0/query';
+            
+            const initialCoords = [44.0, -72.7]; 
+            const initialZoom = 8;
+            const GRID_SIZE = 40;
+            const BATCH_SIZE = 25; 
+            const BOUNDS_EXPANSION_FACTOR = 0.5;
+            const METERS_TO_FEET = 3.28084;
+            const BUILDING_LAYER_MIN_ZOOM = 16;
+            
+            let lastAnalysisResults = null;
+            let lastPolygonCenter = null;
+
+            const PROJ_WGS84 = '+proj=longlat +datum=WGS84 +no_defs';
+            const PROJ_VT_STATE_PLANE = '+proj=tmerc +lat_0=42.5 +lon_0=-72.5 +k=0.9999642857142857 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs';
+            if (typeof proj4 !== 'undefined') {
+                proj4.defs('EPSG:4326', PROJ_WGS84);
+                proj4.defs('EPSG:32145', PROJ_VT_STATE_PLANE);
+            }
+            const tiffCache = new Map();
+
+            // --- Map Initialization ---
+            const map = L.map('map').setView(initialCoords, initialZoom);
+            let drawnItems = new L.FeatureGroup().addTo(map);
+            let analysisMarkers = new L.FeatureGroup().addTo(map);
+            let searchMarker = L.marker([0,0], { opacity: 0 });
+            
+            const googleSatellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{
+                maxZoom: 22,
+                subdomains:['mt0','mt1','mt2','mt3']
+            }).addTo(map);
+
+            const drawControl = new L.Control.Draw({
+                edit: { featureGroup: drawnItems },
+                draw: {
+                    polygon: { shapeOptions: { color: '#3b82f6', fillColor: '#60a5fa', fillOpacity: 0.3 } },
+                    polyline: false, rectangle: false, circle: false, marker: false, circlemarker: false
+                }
+            });
+            map.addControl(drawControl);
+
+            // --- UI Elements ---
+            const statusEl = document.getElementById('status');
+            const statusTextEl = document.getElementById('status-text');
+            const highestGradeEl = document.getElementById('highest-grade');
+            const highestCoordsEl = document.getElementById('highest-coords');
+            const lowestGradeEl = document.getElementById('lowest-grade');
+            const lowestCoordsEl = document.getElementById('lowest-coords');
+            const exportButton = document.getElementById('export-button');
+            const streetviewButton = document.getElementById('streetview-button');
+            const mapTab = document.getElementById('map-tab');
+            const docsTab = document.getElementById('docs-tab');
+            const mapContent = document.getElementById('map-content');
+            const docsContent = document.getElementById('docs-content');
+
+            // --- Search Control ---
+            const SearchControl = L.Control.extend({
+                onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control bg-white rounded-md shadow');
+                    container.style.width = '280px';
+                    container.innerHTML = `
+                        <div id="search-container" class="relative">
+                            <input type="text" id="address-input" placeholder="Enter Vermont address..." class="w-full p-2 border-none rounded-md focus:ring-0">
+                            <div id="suggestions-box" class="absolute z-[1001] w-full bg-white border border-gray-300 rounded-b-md shadow-lg hidden max-h-60 overflow-y-auto"></div>
+                        </div>`;
+                    L.DomEvent.on(container, 'click mousedown dblclick', L.DomEvent.stopPropagation);
+                    return container;
+                }
+            });
+            new SearchControl({ position: 'topright' }).addTo(map);
+            
+            const addressInput = document.getElementById('address-input');
+            const suggestionsBox = document.getElementById('suggestions-box');
+            
+            // --- Building Footprints Layer with Popup ---
+            const buildingsLayer = L.geoJSON(null, {
+                style: { color: "#ff7800", weight: 2, opacity: 0.65 },
+                onEachFeature: function(feature, layer) {
+                    if (feature.properties) {
+                        let popupContent = '<table class="popup-table">';
+                        const fieldsToShow = {
+                            "ADDRESS": "Address",
+                            "TOWN": "Town",
+                            "BLDG_TYPE": "Building Type",
+                            "YEAR_BUILT": "Year Built",
+                            "PROP_USE": "Property Use"
+                        };
+
+                        for (const key in fieldsToShow) {
+                            if (feature.properties[key]) {
+                                popupContent += `<tr><td>${fieldsToShow[key]}</td><td>${feature.properties[key]}</td></tr>`;
+                            }
+                        }
+                        popupContent += "</table>";
+                        layer.bindPopup(popupContent);
+                    }
+                }
+            });
+            
+            const baseMaps = { "Satellite": googleSatellite };
+            const overlayMaps = { "Building Footprints": buildingsLayer };
+            L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
+
+            // --- Functions ---
+            const debounce = (func, delay) => {
+                let timeout;
+                return (...args) => {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func(...args), delay);
+                };
+            };
+            
+            const loadBuildingFootprints = async () => {
+                if (map.getZoom() < BUILDING_LAYER_MIN_ZOOM) {
+                    buildingsLayer.clearLayers();
+                    return;
+                }
+
+                const bounds = map.getBounds();
+                const bbox = {
+                    xmin: bounds.getWest(),
+                    ymin: bounds.getSouth(),
+                    xmax: bounds.getEast(),
+                    ymax: bounds.getNorth()
+                };
+
+                const params = new URLSearchParams({
+                    where: '1=1',
+                    outFields: '*',
+                    geometry: JSON.stringify(bbox),
+                    geometryType: 'esriGeometryEnvelope',
+                    inSR: '4326',
+                    spatialRel: 'esriSpatialRelIntersects',
+                    f: 'geojson'
+                });
+
+                try {
+                    const response = await fetch(`${buildingsUrlBase}?${params}`);
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    const data = await response.json();
+                    buildingsLayer.clearLayers();
+                    buildingsLayer.addData(data);
+                } catch (error) {
+                    console.error('Failed to fetch building footprints:', error);
+                }
+            };
+
+            const debouncedLoadBuildings = debounce(loadBuildingFootprints, 500);
+
+            // --- Event Listeners ---
+            mapTab.addEventListener('click', () => {
+                mapContent.classList.remove('hidden');
+                docsContent.classList.add('hidden');
+                mapTab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600';
+                docsTab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+                map.invalidateSize();
+            });
+            
+            docsTab.addEventListener('click', () => {
+                mapContent.classList.add('hidden');
+                docsContent.classList.remove('hidden');
+                docsTab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600';
+                mapTab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+            });
+
+            map.on('moveend', () => {
+                if (userWantsBuildingsVisible) {
+                    debouncedLoadBuildings();
+                }
+            });
+
+            let userWantsBuildingsVisible = false;
+            map.on('overlayadd', function(e) {
+                if (e.name === 'Building Footprints') {
+                    userWantsBuildingsVisible = true;
+                    loadBuildingFootprints();
+                }
+            });
+
+            map.on('overlayremove', function(e) {
+                if (e.name === 'Building Footprints') {
+                    userWantsBuildingsVisible = false;
+                    buildingsLayer.clearLayers();
+                }
+            });
+
+            map.on(L.Draw.Event.CREATED, (e) => { drawnItems.clearLayers().addLayer(e.layer); analyzePolygon(e.layer); });
+            map.on(L.Draw.Event.EDITED, (e) => { e.layers.eachLayer(layer => analyzePolygon(layer)); });
+            map.on(L.Draw.Event.DELETED, () => { resetAnalysis(); });
+
+            addressInput.addEventListener('keyup', (e) => {
+                const searchTerm = e.target.value;
+                if (searchTerm.length < 3) {
+                    suggestionsBox.classList.add('hidden');
+                    return;
+                }
+                debouncedGeocode(searchTerm);
+            });
+
+            document.addEventListener('click', (e) => {
+                const searchContainer = document.getElementById('search-container');
+                if (searchContainer && !searchContainer.contains(e.target)) {
+                    suggestionsBox.classList.add('hidden');
+                }
+            });
+
+            exportButton.addEventListener('click', exportGeoJSON);
+            streetviewButton.addEventListener('click', openStreetView);
+            
+            const debouncedGeocode = debounce(async (term) => {
+                const params = new URLSearchParams({ SingleLine: term, f: 'json', outSR: '4326', maxLocations: '5' });
+                const response = await fetch(`${geocodeUrl}/findAddressCandidates?${params}`);
+                const data = await response.json();
+                
+                suggestionsBox.innerHTML = '';
+                if (data.candidates && data.candidates.length > 0) {
+                    data.candidates.forEach(candidate => {
+                        const div = document.createElement('div');
+                        div.innerHTML = candidate.address;
+                        div.className = 'p-2 cursor-pointer hover:bg-slate-100';
+                        div.onclick = () => {
+                            addressInput.value = candidate.address;
+                            suggestionsBox.classList.add('hidden');
+                            map.setView([candidate.location.y, candidate.location.x], 18);
+                            if (searchMarker.options.opacity === 0) {
+                                searchMarker.addTo(map);
+                                searchMarker.setOpacity(1);
+                            }
+                            searchMarker.setLatLng([candidate.location.y, candidate.location.x]);
+                        };
+                        suggestionsBox.appendChild(div);
+                    });
+                    suggestionsBox.classList.remove('hidden');
+                } else {
+                    suggestionsBox.classList.add('hidden');
+                }
+            }, 300);
+
+            function resetAnalysis() {
+                statusTextEl.textContent = 'Use the polygon tool on the left to draw an area of interest.';
+                statusEl.className = 'text-center mb-4 p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200';
+                highestGradeEl.textContent = '-'; highestCoordsEl.textContent = '-';
+                lowestGradeEl.textContent = '-'; lowestCoordsEl.textContent = '-';
+                analysisMarkers.clearLayers();
+                lastAnalysisResults = null;
+                lastPolygonCenter = null;
+                exportButton.classList.add('hidden');
+                streetviewButton.classList.add('hidden');
+            }
+
+            async function fetchCogPixelValue(lat, lng) {
+                if (typeof GeoTIFF === 'undefined' || typeof proj4 === 'undefined') throw new Error("GeoTIFF/proj4 not loaded.");
+                let tiff = tiffCache.get(cogUrl);
+                if (!tiff) {
+                    tiff = await GeoTIFF.fromUrl(cogUrl, { allowFullFile: false });
+                    tiffCache.set(cogUrl, tiff);
+                }
+                const image = await tiff.getImage();
+                const [px, py] = proj4('EPSG:4326', 'EPSG:32145', [lng, lat]);
+                const boundingBox = image.getBoundingBox();
+                const imageWidth = image.getWidth();
+                const imageHeight = image.getHeight();
+                if (px < boundingBox[0] || px > boundingBox[2] || py < boundingBox[1] || py > boundingBox[3]) return null;
+                const col = Math.floor(((px - boundingBox[0]) / (boundingBox[2] - boundingBox[0])) * imageWidth);
+                const row = Math.floor(((boundingBox[3] - py) / (boundingBox[3] - boundingBox[1])) * imageHeight);
+                if (col < 0 || col >= imageWidth || row < 0 || row >= imageHeight) return null;
+                const rasters = await image.readRasters({ window: [col, row, col + 1, row + 1] });
+                const noDataValue = image.getGDALNoData();
+                const pixelValue = rasters[0][0];
+                return (pixelValue !== noDataValue) ? pixelValue : null;
+            }
+
+            async function analyzePolygon(polygonLayer) {
+                statusTextEl.textContent = 'Sampling points and fetching data...';
+                statusEl.className = 'text-center mb-4 p-3 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 animate-pulse';
+                analysisMarkers.clearLayers();
+                lastAnalysisResults = null;
+                lastPolygonCenter = null;
+                exportButton.classList.add('hidden');
+                streetviewButton.classList.add('hidden');
+
+                try {
+                    const bounds = polygonLayer.getBounds();
+                    lastPolygonCenter = bounds.getCenter(); // Store center for Street View
+                    const latDiff = bounds.getNorth() - bounds.getSouth();
+                    const lngDiff = bounds.getEast() - bounds.getWest();
+                    const searchBounds = L.latLngBounds(
+                        [bounds.getSouth() - latDiff * BOUNDS_EXPANSION_FACTOR, bounds.getWest() - lngDiff * BOUNDS_EXPANSION_FACTOR],
+                        [bounds.getNorth() + latDiff * BOUNDS_EXPANSION_FACTOR, bounds.getEast() + lngDiff * BOUNDS_EXPANSION_FACTOR]
+                    );
+                    const [minLng, minLat] = [searchBounds.getWest(), searchBounds.getSouth()];
+                    const [maxLng, maxLat] = [searchBounds.getEast(), searchBounds.getNorth()];
+                    const lngStep = (maxLng - minLng) / (GRID_SIZE - 1);
+                    const latStep = (maxLat - minLat) / (GRID_SIZE - 1);
+                    const pointsToSample = [];
+                    for (let i = 0; i < GRID_SIZE; i++) {
+                        for (let j = 0; j < GRID_SIZE; j++) {
+                            const lat = minLat + (j * latStep);
+                            const lng = minLng + (i * lngStep);
+                            if (!isPointInPolygon({ lat, lng }, polygonLayer.getLatLngs()[0])) {
+                                pointsToSample.push({ lat, lng });
+                            }
+                        }
+                    }
+                    if (pointsToSample.length === 0) throw new Error("Could not find any points outside the polygon in the search area.");
+                    let results = [];
+                    for (let i = 0; i < pointsToSample.length; i += BATCH_SIZE) {
+                        const batch = pointsToSample.slice(i, i + BATCH_SIZE);
+                        const promises = batch.map(p => fetchCogPixelValue(p.lat, p.lng).then(elev => ({...p, elev})));
+                        const batchResults = await Promise.all(promises);
+                        results.push(...batchResults);
+                        statusTextEl.textContent = `Processing... (${results.length}/${pointsToSample.length} points)`;
+                    }
+                    const validResults = results.filter(r => r.elev !== null);
+                    if (validResults.length === 0) throw new Error("No valid elevation data found for this area.");
+                    let minResult = validResults[0], maxResult = validResults[0];
+                    for (const result of validResults) {
+                        if (result.elev < minResult.elev) minResult = result;
+                        if (result.elev > maxResult.elev) maxResult = result;
+                    }
+
+                    lastAnalysisResults = {
+                        maxPoint: { elev: maxResult.elev, coords: [maxResult.lat, maxResult.lng] },
+                        minPoint: { elev: minResult.elev, coords: [minResult.lat, minResult.lng] }
+                    };
+                    
+                    updateResults(maxResult.elev, [maxResult.lat, maxResult.lng], minResult.elev, [minResult.lat, minResult.lng]);
+                    statusTextEl.textContent = 'Analysis complete. Results are shown below.';
+                    statusEl.className = 'text-center mb-4 p-3 rounded-lg bg-green-50 text-green-700 border border-green-200';
+                    exportButton.classList.remove('hidden');
+                    streetviewButton.classList.remove('hidden');
+
+                } catch (error) {
+                    console.error("Analysis Error:", error);
+                    statusTextEl.textContent = `Error: ${error.message}`;
+                    statusEl.className = 'text-center mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200';
+                    resetAnalysis();
+                }
+            }
+
+            function updateResults(maxElev, maxPoint, minElev, minPoint) {
+                const maxElevFeet = maxElev * METERS_TO_FEET;
+                const minElevFeet = minElev * METERS_TO_FEET;
+                highestGradeEl.innerHTML = `${maxElev.toFixed(2)} m / <span class="text-slate-400">${maxElevFeet.toFixed(2)} ft</span>`;
+                highestCoordsEl.textContent = `${maxPoint[0].toFixed(5)}, ${maxPoint[1].toFixed(5)}`;
+                lowestGradeEl.innerHTML = `${minElev.toFixed(2)} m / <span class="text-slate-400">${minElevFeet.toFixed(2)} ft</span>`;
+                lowestCoordsEl.textContent = `${minPoint[0].toFixed(5)}, ${minPoint[1].toFixed(5)}`;
+                const highMarker = L.marker(maxPoint).addTo(analysisMarkers);
+                const lowMarker = L.marker(minPoint).addTo(analysisMarkers);
+                const highTooltip = `<b>Local Highest Point</b><br>${maxElev.toFixed(2)} m / ${maxElevFeet.toFixed(2)} ft`;
+                const lowTooltip = `<b>Local Lowest Point</b><br>${minElev.toFixed(2)} m / ${minElevFeet.toFixed(2)} ft`;
+                highMarker.bindTooltip(highTooltip, { permanent: true, direction: 'top' }).openTooltip();
+                lowMarker.bindTooltip(lowTooltip, { permanent: true, direction: 'bottom' }).openTooltip();
+            }
+
+            function exportGeoJSON() {
+                if (!lastAnalysisResults) {
+                    alert("Please run an analysis first by drawing a polygon.");
+                    return;
+                }
+
+                const { maxPoint, minPoint } = lastAnalysisResults;
+
+                const geojson = {
+                    "type": "FeatureCollection",
+                    "features": [
+                        {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [maxPoint.coords[1], maxPoint.coords[0]] 
+                            },
+                            "properties": {
+                                "type": "Highest Grade",
+                                "elevation_meters": parseFloat(maxPoint.elev.toFixed(3)),
+                                "elevation_feet": parseFloat((maxPoint.elev * METERS_TO_FEET).toFixed(3))
+                            }
+                        },
+                        {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [minPoint.coords[1], minPoint.coords[0]]
+                            },
+                            "properties": {
+                                "type": "Lowest Grade",
+                                "elevation_meters": parseFloat(minPoint.elev.toFixed(3)),
+                                "elevation_feet": parseFloat((minPoint.elev * METERS_TO_FEET).toFixed(3))
+                            }
+                        }
+                    ]
+                };
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(geojson, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "elevation_points.geojson");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            }
+
+             function openStreetView() {
+                if (lastPolygonCenter) {
+                    const lat = lastPolygonCenter.lat;
+                    const lng = lastPolygonCenter.lng;
+                    const url = `https://www.google.com/maps?q&layer=c&cbll=${lat},${lng}`;
+                    window.open(url, '_blank');
+                } else {
+                    alert("Please run an analysis first by drawing a polygon.");
+                }
+            }
+
+            function isPointInPolygon(point, vs) {
+                const x = point.lng, y = point.lat;
+                let inside = false;
+                for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+                    const xi = vs[i].lng, yi = vs[i].lat;
+                    const xj = vs[j].lng, yj = vs[j].lat;
+                    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                    if (intersect) inside = !inside;
+                }
+                return inside;
+            }
+        });
+    </script>
+</body>
+</html>
