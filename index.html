@@ -32,10 +32,38 @@
         .popup-table { width: 100%; border-collapse: collapse; }
         .popup-table td { padding: 4px 8px; border: 1px solid #e2e8f0; }
         .popup-table td:first-child { font-weight: bold; background-color: #f8fafc; }
+        .river-corridor-label {
+            background-color: rgba(255, 255, 255, 0.7);
+            border: none;
+            border-radius: 4px;
+            box-shadow: none;
+            color: black;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 4px;
+        }
+        .fema-flood-label {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            color: black;
+            font-weight: bold;
+            font-size: 12px;
+            text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Hidden SVG for fill patterns -->
+    <svg height="0" width="0" style="position:absolute;z-index:-1;">
+      <defs>
+        <pattern id="red-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="8" style="stroke:red; stroke-width:4;" />
+        </pattern>
+      </defs>
+    </svg>
 
     <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-4xl">
         <div class="text-center mb-4">
@@ -65,6 +93,9 @@
                     </button>
                      <button id="streetview-button" class="hidden bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow ml-2">
                         View in Streetview
+                    </button>
+                    <button id="bing-maps-button" class="hidden bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow ml-2">
+                        View in Bing Maps
                     </button>
                 </div>
             </div>
@@ -109,10 +140,12 @@
             </ul>
 
             <h2>Data Sources</h2>
-            <p>All data used in this application is publicly available from the Vermont Center for Geographic Information (VCGI).</p>
+            <p>All data used in this application is publicly available from the Vermont Center for Geographic Information (VCGI) and other agencies.</p>
             <ul>
                 <li><strong>Elevation Data:</strong> The analysis is performed on the <code>STATEWIDE_2013-2017_70cm_DEMHF.tif</code> Digital Elevation Model (DEM). This is a high-resolution, 70cm bare-earth raster covering the state of Vermont. It is accessed as a Cloud-Optimized GeoTIFF (COG) hosted on AWS S3.</li>
                 <li><strong>Building Footprints:</strong> The optional building footprints layer is loaded on-demand from the <code>FS_VCGI_OPENDATA_STRUCTURES_POLY_SP_v1</code> ArcGIS FeatureServer. To improve performance, footprints are only fetched for the visible map area and only when zoomed in past level 16.</li>
+                <li><strong>River Cross Sections:</strong> The River Cross Sections layer is loaded from the <code>OPENDATA_ANR_EMERGENCY_SP_NOCACHE_v2</code> ArcGIS MapServer.</li>
+                <li><strong>FEMA Flood Hazard Zones:</strong> Flood hazard data is loaded dynamically from the official <a href="https://hazards-fema.maps.arcgis.com/home/item.html?id=35e0a4cbf41048728e4009c1424473f0" target="_blank">FEMA National Flood Hazard Layer (NFHL)</a> data service.</li>
                 <li><strong>Address Search:</strong> Address lookup is provided by the <code>GCS_E911_COMPOSITE_SP_v2</code> GeocodeServer, also hosted by VCGI.</li>
             </ul>
         </div>
@@ -124,13 +157,15 @@
             const cogUrl = 'https://s3.us-east-2.amazonaws.com/vtopendata-prd/Elevation/STATEWIDE_2013-2017_70cm_DEMHF.tif';
             const geocodeUrl = 'https://maps.vcgi.vermont.gov/arcgis/rest/services/EGC_services/GCS_E911_COMPOSITE_SP_v2/GeocodeServer';
             const buildingsUrlBase = 'https://services1.arcgis.com/BkFxaEFNwHqX3tAw/arcgis/rest/services/FS_VCGI_OPENDATA_STRUCTURES_POLY_SP_v1/FeatureServer/0/query';
+            const riverCorridorsUrlBase = 'https://anrmaps.vermont.gov/arcgis/rest/services/Open_Data/OPENDATA_ANR_EMERGENCY_SP_NOCACHE_v2/MapServer/63/query';
+            const femaFloodUrlBase = 'https://hazards.fema.gov/arcgis/rest/services/FIRMette/NFHLREST_FIRMette/MapServer/20/query';
             
             const initialCoords = [44.0, -72.7]; 
             const initialZoom = 8;
-            const LINE_SAMPLE_POINTS = 200; // Number of points to sample along the polygon line
+            const LINE_SAMPLE_POINTS = 200;
             const BATCH_SIZE = 25; 
             const METERS_TO_FEET = 3.28084;
-            const BUILDING_LAYER_MIN_ZOOM = 16;
+            const DYNAMIC_LAYER_MIN_ZOOM = 16;
             
             let lastAnalysisResults = null;
             let lastPolygonCenter = null;
@@ -151,8 +186,16 @@
             
             const googleSatellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{
                 maxZoom: 22,
-                subdomains:['mt0','mt1','mt2','mt3']
-            }).addTo(map);
+                subdomains:['mt0','mt1','mt2','mt3'],
+                attribution: 'Map data &copy; Google'
+            });
+            
+            const esriImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 22,
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            });
+
+            googleSatellite.addTo(map);
 
             const drawControl = new L.Control.Draw({
                 edit: { featureGroup: drawnItems },
@@ -172,6 +215,7 @@
             const lowestCoordsEl = document.getElementById('lowest-coords');
             const exportButton = document.getElementById('export-button');
             const streetviewButton = document.getElementById('streetview-button');
+            const bingMapsButton = document.getElementById('bing-maps-button');
             const mapTab = document.getElementById('map-tab');
             const docsTab = document.getElementById('docs-tab');
             const mapContent = document.getElementById('map-content');
@@ -196,20 +240,13 @@
             const addressInput = document.getElementById('address-input');
             const suggestionsBox = document.getElementById('suggestions-box');
             
-            // --- Building Footprints Layer with Popup ---
+            // --- Feature Layers ---
             const buildingsLayer = L.geoJSON(null, {
                 style: { color: "#ff7800", weight: 2, opacity: 0.65 },
                 onEachFeature: function(feature, layer) {
                     if (feature.properties) {
                         let popupContent = '<table class="popup-table">';
-                        const fieldsToShow = {
-                            "ADDRESS": "Address",
-                            "TOWN": "Town",
-                            "BLDG_TYPE": "Building Type",
-                            "YEAR_BUILT": "Year Built",
-                            "PROP_USE": "Property Use"
-                        };
-
+                        const fieldsToShow = { "ADDRESS": "Address", "TOWN": "Town", "BLDG_TYPE": "Building Type", "YEAR_BUILT": "Year Built", "PROP_USE": "Property Use" };
                         for (const key in fieldsToShow) {
                             if (feature.properties[key]) {
                                 popupContent += `<tr><td>${fieldsToShow[key]}</td><td>${feature.properties[key]}</td></tr>`;
@@ -220,9 +257,81 @@
                     }
                 }
             });
+
+            const riverCorridorsLayer = L.geoJSON(null, {
+                style: { color: "red", weight: 2, dashArray: '5, 10' },
+                onEachFeature: function(feature, layer) {
+                    if (feature.properties) {
+                        const { XS_LTR, XS_LN_ID, WSEL_REG } = feature.properties;
+                        const label = `${XS_LTR || ''}:${XS_LN_ID || ''}: ${WSEL_REG || ''}`;
+                        layer.bindTooltip(label, {
+                            permanent: true,
+                            direction: 'center',
+                            className: 'river-corridor-label'
+                        });
+                    }
+                }
+            });
+
+            const femaFloodLayer = L.geoJSON(null, {
+                style: function(feature) {
+                    const props = feature.properties;
+                    const style = {
+                        color: 'white',
+                        weight: 1,
+                        fillOpacity: 0.5,
+                    };
+                    
+                    if (props.ZONE_SUBTY === 'FLOODWAY') {
+                        return { 
+                           ...style, 
+                           fillColor: 'url(#red-hatch)',
+                           fillOpacity: 0.5
+                        };
+                    }
+
+                    switch (props.FLD_ZONE) {
+                        case 'AE':
+                            return { ...style, fillColor: '#3b82f6' };
+                        case 'X':
+                            if (props.ZONE_SUBTY === '0.2 PCT ANNUAL CHANCE FLOOD HAZARD') {
+                                return { ...style, fillColor: 'orange' };
+                            } else {
+                                return { stroke: false, fill: false };
+                            }
+                        default:
+                            return { ...style, fillColor: "#FF0000" };
+                    }
+                },
+                onEachFeature: function(feature, layer) {
+                    const props = feature.properties;
+                    if (props) {
+                        layer.bindPopup(`<b>Flood Zone:</b> ${props.FLD_ZONE}<br><b>Type:</b> ${props.ZONE_SUBTY}`);
+
+                        const isVisibleXZone = (props.FLD_ZONE === 'X' && props.ZONE_SUBTY === '0.2 PCT ANNUAL CHANCE FLOOD HAZARD');
+                        const isOtherVisibleZone = (props.FLD_ZONE !== 'X');
+
+                        if ((isVisibleXZone || isOtherVisibleZone) && props.FLD_ZONE) {
+                            const labelText = `Zone ${props.FLD_ZONE}`;
+                            layer.bindTooltip(labelText, {
+                                permanent: true,
+                                direction: 'center',
+                                className: 'fema-flood-label'
+                            });
+                        }
+                    }
+                }
+            });
             
-            const baseMaps = { "Satellite": googleSatellite };
-            const overlayMaps = { "Building Footprints": buildingsLayer };
+            const baseMaps = { 
+                "Google Satellite": googleSatellite,
+                "Esri Imagery": esriImagery
+            };
+            const overlayMaps = { 
+                "Building Footprints": buildingsLayer,
+                "FEMA Cross Sections": riverCorridorsLayer,
+                "FEMA Flood Hazard Zones": femaFloodLayer
+            };
             L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
 
             // --- Functions ---
@@ -234,42 +343,31 @@
                 };
             };
             
-            const loadBuildingFootprints = async () => {
-                if (map.getZoom() < BUILDING_LAYER_MIN_ZOOM) {
-                    buildingsLayer.clearLayers();
+            async function loadDynamicLayer(layer, urlBase) {
+                 if (map.getZoom() < DYNAMIC_LAYER_MIN_ZOOM) { 
+                    layer.clearLayers();
                     return;
                 }
-
                 const bounds = map.getBounds();
-                const bbox = {
-                    xmin: bounds.getWest(),
-                    ymin: bounds.getSouth(),
-                    xmax: bounds.getEast(),
-                    ymax: bounds.getNorth()
-                };
-
+                const bbox = { xmin: bounds.getWest(), ymin: bounds.getSouth(), xmax: bounds.getEast(), ymax: bounds.getNorth() };
                 const params = new URLSearchParams({
-                    where: '1=1',
-                    outFields: '*',
-                    geometry: JSON.stringify(bbox),
-                    geometryType: 'esriGeometryEnvelope',
-                    inSR: '4326',
-                    spatialRel: 'esriSpatialRelIntersects',
-                    f: 'geojson'
+                    where: '1=1', outFields: '*', geometry: JSON.stringify(bbox),
+                    geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', f: 'geojson'
                 });
-
                 try {
-                    const response = await fetch(`${buildingsUrlBase}?${params}`);
+                    const response = await fetch(`${urlBase}?${params}`);
                     if (!response.ok) throw new Error('Network response was not ok');
                     const data = await response.json();
-                    buildingsLayer.clearLayers();
-                    buildingsLayer.addData(data);
+                    layer.clearLayers();
+                    layer.addData(data);
                 } catch (error) {
-                    console.error('Failed to fetch building footprints:', error);
+                    console.error('Failed to fetch layer data:', error);
                 }
-            };
-
-            const debouncedLoadBuildings = debounce(loadBuildingFootprints, 500);
+            }
+            
+            const debouncedLoadBuildings = debounce(() => loadDynamicLayer(buildingsLayer, buildingsUrlBase), 500);
+            const debouncedLoadRiverCorridors = debounce(() => loadDynamicLayer(riverCorridorsLayer, riverCorridorsUrlBase), 500);
+            const debouncedLoadFemaFlood = debounce(() => loadDynamicLayer(femaFloodLayer, femaFloodUrlBase), 500);
 
             // --- Event Listeners ---
             mapTab.addEventListener('click', () => {
@@ -288,24 +386,21 @@
             });
 
             map.on('moveend', () => {
-                if (userWantsBuildingsVisible) {
-                    debouncedLoadBuildings();
-                }
+                if (map.hasLayer(buildingsLayer)) debouncedLoadBuildings();
+                if (map.hasLayer(riverCorridorsLayer)) debouncedLoadRiverCorridors();
+                if (map.hasLayer(femaFloodLayer)) debouncedLoadFemaFlood();
             });
 
-            let userWantsBuildingsVisible = false;
             map.on('overlayadd', function(e) {
-                if (e.name === 'Building Footprints') {
-                    userWantsBuildingsVisible = true;
-                    loadBuildingFootprints();
-                }
+                if (e.name === 'Building Footprints') loadDynamicLayer(buildingsLayer, buildingsUrlBase);
+                if (e.name === 'FEMA Cross Sections') loadDynamicLayer(riverCorridorsLayer, riverCorridorsUrlBase);
+                if (e.name === 'FEMA Flood Hazard Zones') loadDynamicLayer(femaFloodLayer, femaFloodUrlBase);
             });
 
             map.on('overlayremove', function(e) {
-                if (e.name === 'Building Footprints') {
-                    userWantsBuildingsVisible = false;
-                    buildingsLayer.clearLayers();
-                }
+                if (e.name === 'Building Footprints') buildingsLayer.clearLayers();
+                if (e.name === 'FEMA Cross Sections') riverCorridorsLayer.clearLayers();
+                if (e.name === 'FEMA Flood Hazard Zones') femaFloodLayer.clearLayers();
             });
 
             map.on(L.Draw.Event.CREATED, (e) => { drawnItems.clearLayers().addLayer(e.layer); analyzePolygon(e.layer); });
@@ -330,6 +425,7 @@
 
             exportButton.addEventListener('click', exportGeoJSON);
             streetviewButton.addEventListener('click', openStreetView);
+            bingMapsButton.addEventListener('click', openBingMaps);
             
             const debouncedGeocode = debounce(async (term) => {
                 const params = new URLSearchParams({ SingleLine: term, f: 'json', outSR: '4326', maxLocations: '5' });
@@ -370,6 +466,7 @@
                 lastPolygonCenter = null;
                 exportButton.classList.add('hidden');
                 streetviewButton.classList.add('hidden');
+                bingMapsButton.classList.add('hidden');
             }
 
             async function fetchCogPixelValue(lat, lng) {
@@ -394,55 +491,38 @@
                 return (pixelValue !== noDataValue) ? pixelValue : null;
             }
 
-             /**
-             * Samples points along a polygon's perimeter.
-             */
             function getPointsAlongPerimeter(latLngs, numSamples) {
                 if (!latLngs || latLngs.length < 2) return [];
-
                 const points = [];
                 let totalDistance = 0;
                 const segmentDistances = [];
-
-                // Ensure the polygon is closed for calculation
                 const closedLatLngs = [...latLngs, latLngs[0]];
-
                 for (let i = 0; i < closedLatLngs.length - 1; i++) {
                     const dist = map.distance(closedLatLngs[i], closedLatLngs[i+1]);
                     segmentDistances.push(dist);
                     totalDistance += dist;
                 }
-
                 if (totalDistance === 0) return [];
-                
                 const interval = totalDistance / numSamples;
                 let distanceCovered = 0;
                 let segmentIndex = 0;
                 let distanceIntoSegment = 0;
-
                 points.push({lat: closedLatLngs[0].lat, lng: closedLatLngs[0].lng});
-
                 for(let i = 1; i < numSamples; i++) {
                     const targetDistance = i * interval;
-                    
                     while(distanceCovered + segmentDistances[segmentIndex] < targetDistance) {
                         distanceCovered += segmentDistances[segmentIndex];
                         segmentIndex++;
                         distanceIntoSegment = 0;
                     }
-                    
                     distanceIntoSegment = targetDistance - distanceCovered;
                     const ratio = distanceIntoSegment / segmentDistances[segmentIndex];
-                    
                     const start = closedLatLngs[segmentIndex];
                     const end = closedLatLngs[segmentIndex+1];
-                    
                     const lat = start.lat + (end.lat - start.lat) * ratio;
                     const lng = start.lng + (end.lng - start.lng) * ratio;
-                    
                     points.push({lat, lng});
                 }
-                
                 return points;
             }
 
@@ -454,15 +534,13 @@
                 lastPolygonCenter = null;
                 exportButton.classList.add('hidden');
                 streetviewButton.classList.add('hidden');
+                bingMapsButton.classList.add('hidden');
 
                 try {
                     const bounds = polygonLayer.getBounds();
-                    lastPolygonCenter = bounds.getCenter(); // Store center for Street View
-                    
+                    lastPolygonCenter = bounds.getCenter();
                     const pointsToSample = getPointsAlongPerimeter(polygonLayer.getLatLngs()[0], LINE_SAMPLE_POINTS);
-
                     if (pointsToSample.length === 0) throw new Error("Could not sample points along the polygon line. It might be too small.");
-                    
                     let results = [];
                     for (let i = 0; i < pointsToSample.length; i += BATCH_SIZE) {
                         const batch = pointsToSample.slice(i, i + BATCH_SIZE);
@@ -478,18 +556,16 @@
                         if (result.elev < minResult.elev) minResult = result;
                         if (result.elev > maxResult.elev) maxResult = result;
                     }
-
                     lastAnalysisResults = {
                         maxPoint: { elev: maxResult.elev, coords: [maxResult.lat, maxResult.lng] },
                         minPoint: { elev: minResult.elev, coords: [minResult.lat, minResult.lng] }
                     };
-                    
                     updateResults(maxResult.elev, [maxResult.lat, maxResult.lng], minResult.elev, [minResult.lat, minResult.lng]);
                     statusTextEl.textContent = 'Analysis complete. Results are shown below.';
                     statusEl.className = 'text-center mb-4 p-3 rounded-lg bg-green-50 text-green-700 border border-green-200';
                     exportButton.classList.remove('hidden');
                     streetviewButton.classList.remove('hidden');
-
+                    bingMapsButton.classList.remove('hidden');
                 } catch (error) {
                     console.error("Analysis Error:", error);
                     statusTextEl.textContent = `Error: ${error.message}`;
@@ -518,39 +594,14 @@
                     alert("Please run an analysis first by drawing a polygon.");
                     return;
                 }
-
                 const { maxPoint, minPoint } = lastAnalysisResults;
-
                 const geojson = {
                     "type": "FeatureCollection",
                     "features": [
-                        {
-                            "type": "Feature",
-                            "geometry": {
-                                "type": "Point",
-                                "coordinates": [maxPoint.coords[1], maxPoint.coords[0]] 
-                            },
-                            "properties": {
-                                "type": "Highest Grade",
-                                "elevation_meters": parseFloat(maxPoint.elev.toFixed(3)),
-                                "elevation_feet": parseFloat((maxPoint.elev * METERS_TO_FEET).toFixed(3))
-                            }
-                        },
-                        {
-                            "type": "Feature",
-                            "geometry": {
-                                "type": "Point",
-                                "coordinates": [minPoint.coords[1], minPoint.coords[0]]
-                            },
-                            "properties": {
-                                "type": "Lowest Grade",
-                                "elevation_meters": parseFloat(minPoint.elev.toFixed(3)),
-                                "elevation_feet": parseFloat((minPoint.elev * METERS_TO_FEET).toFixed(3))
-                            }
-                        }
+                        { "type": "Feature", "geometry": { "type": "Point", "coordinates": [maxPoint.coords[1], maxPoint.coords[0]] }, "properties": { "type": "Highest Grade", "elevation_meters": parseFloat(maxPoint.elev.toFixed(3)), "elevation_feet": parseFloat((maxPoint.elev * METERS_TO_FEET).toFixed(3)) } },
+                        { "type": "Feature", "geometry": { "type": "Point", "coordinates": [minPoint.coords[1], minPoint.coords[0]] }, "properties": { "type": "Lowest Grade", "elevation_meters": parseFloat(minPoint.elev.toFixed(3)), "elevation_feet": parseFloat((minPoint.elev * METERS_TO_FEET).toFixed(3)) } }
                     ]
                 };
-
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(geojson, null, 2));
                 const downloadAnchorNode = document.createElement('a');
                 downloadAnchorNode.setAttribute("href", dataStr);
@@ -560,7 +611,7 @@
                 downloadAnchorNode.remove();
             }
 
-             function openStreetView() {
+            function openStreetView() {
                 if (lastPolygonCenter) {
                     const lat = lastPolygonCenter.lat;
                     const lng = lastPolygonCenter.lng;
@@ -570,17 +621,16 @@
                     alert("Please run an analysis first by drawing a polygon.");
                 }
             }
-
-            function isPointInPolygon(point, vs) {
-                const x = point.lng, y = point.lat;
-                let inside = false;
-                for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-                    const xi = vs[i].lng, yi = vs[i].lat;
-                    const xj = vs[j].lng, yj = vs[j].lat;
-                    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-                    if (intersect) inside = !inside;
+            
+            function openBingMaps() {
+                if (lastPolygonCenter) {
+                    const lat = lastPolygonCenter.lat;
+                    const lng = lastPolygonCenter.lng;
+                    const url = `https://www.bing.com/maps?cp=${lat}~${lng}&style=x`;
+                    window.open(url, '_blank');
+                } else {
+                    alert("Please run an analysis first by drawing a polygon.");
                 }
-                return inside;
             }
         });
     </script>
