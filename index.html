@@ -71,6 +71,12 @@
             <p id="subtitle" class="text-slate-500 mt-2">Search for an address and draw a polygon to find the highest and lowest elevation on its perimeter.</p>
         </div>
 
+        <!-- Disclaimer Notice -->
+        <div class="mb-4 p-4 text-center bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-lg">
+            <p class="font-bold">UNOFFICIAL DRAFT DEMO/PROTOTYPE FOR DISCUSSION PURPOSES ONLY</p>
+            <p class="text-sm">DO NOT USE THE INFORMATION ON THIS PAGE FOR PLANNING PURPOSES.</p>
+        </div>
+
         <!-- Tab Controls -->
         <div class="border-b border-gray-200 mb-4">
             <nav class="-mb-px flex space-x-8" aria-label="Tabs">
@@ -144,7 +150,7 @@
             <ul>
                 <li><strong>Elevation Data:</strong> The analysis is performed on the <code>STATEWIDE_2013-2017_70cm_DEMHF.tif</code> Digital Elevation Model (DEM). This is a high-resolution, 70cm bare-earth raster covering the state of Vermont. It is accessed as a Cloud-Optimized GeoTIFF (COG) hosted on AWS S3.</li>
                 <li><strong>Building Footprints:</strong> The optional building footprints layer is loaded on-demand from the <code>FS_VCGI_OPENDATA_STRUCTURES_POLY_SP_v1</code> ArcGIS FeatureServer. To improve performance, footprints are only fetched for the visible map area and only when zoomed in past level 16.</li>
-                <li><strong>River Cross Sections:</strong> The River Cross Sections layer is loaded from the <code>OPENDATA_ANR_EMERGENCY_SP_NOCACHE_v2</code> ArcGIS MapServer.</li>
+                <li><strong>FEMA Cross Sections:</strong> The FEMA Cross Sections layer is loaded from the <code>OPENDATA_ANR_EMERGENCY_SP_NOCACHE_v2</code> ArcGIS MapServer.</li>
                 <li><strong>FEMA Flood Hazard Zones:</strong> Flood hazard data is loaded dynamically from the official <a href="https://hazards-fema.maps.arcgis.com/home/item.html?id=35e0a4cbf41048728e4009c1424473f0" target="_blank">FEMA National Flood Hazard Layer (NFHL)</a> data service.</li>
                 <li><strong>Address Search:</strong> Address lookup is provided by the <code>GCS_E911_COMPOSITE_SP_v2</code> GeocodeServer, also hosted by VCGI.</li>
             </ul>
