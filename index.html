@@ -51,6 +51,13 @@
             font-size: 12px;
             text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
         }
+        .docs-content h2 { font-size: 1.75rem; font-weight: 700; margin-top: 2.5rem; margin-bottom: 1rem; color: #1e293b; }
+        .docs-content h3 { font-size: 1.25rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; color: #334155; }
+        .docs-content p, .docs-content ul { margin-bottom: 1rem; color: #475569; line-height: 1.6; }
+        .docs-content ul { list-style-type: disc; padding-left: 1.5rem; }
+        .docs-content a { color: #2563eb; text-decoration: underline; }
+        .docs-content a:hover { color: #1d4ed8; }
+        .docs-content code { background-color: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -90,70 +97,72 @@
         </div>
 
         <!-- Tab Content -->
-        <div id="map-content">
-            <div id="status" class="text-center mb-4 p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-                <p id="status-text">Use the polygon tool on the left to draw an area of interest.</p>
-                 <div id="action-buttons" class="mt-2">
-                    <button id="export-button" class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow">
-                        Export to GeoJSON
-                    </button>
-                     <button id="streetview-button" class="hidden bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow ml-2">
-                        View in Streetview
-                    </button>
-                    <button id="bing-maps-button" class="hidden bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow ml-2">
-                        View in Bing Maps
-                    </button>
+        <div id="tab-container">
+            <div id="map-content">
+                <div id="status" class="text-center mb-4 p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                    <p id="status-text">Use the polygon tool on the left to draw an area of interest.</p>
+                     <div id="action-buttons" class="mt-2">
+                        <button id="export-button" class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow">
+                            Export to GeoJSON
+                        </button>
+                         <button id="streetview-button" class="hidden bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow ml-2">
+                            View in Streetview
+                        </button>
+                        <button id="bing-maps-button" class="hidden bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow ml-2">
+                            View in Bing Maps
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            <div class="mb-8 overflow-x-auto">
-                <table class="min-w-full bg-white border border-slate-200 rounded-lg">
-                    <thead class="bg-slate-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Info</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Elevation</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Coordinates (Lat, Lng)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="results-body" class="divide-y divide-slate-200">
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Highest Grade (on line)</td>
-                            <td id="highest-grade" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
-                            <td id="highest-coords" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
-                        </tr>
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Lowest Grade (on line)</td>
-                            <td id="lowest-grade" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
-                            <td id="lowest-coords" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="mb-8 overflow-x-auto">
+                    <table class="min-w-full bg-white border border-slate-200 rounded-lg">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Info</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Elevation</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Coordinates (Lat, Lng)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-body" class="divide-y divide-slate-200">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Highest Grade (on line)</td>
+                                <td id="highest-grade" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
+                                <td id="highest-coords" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Lowest Grade (on line)</td>
+                                <td id="lowest-grade" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
+                                <td id="lowest-coords" class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="map"></div>
             </div>
             
-            <div id="map"></div>
-        </div>
-        
-        <div id="docs-content" class="hidden prose max-w-none docs-content">
-            <h2>About This Application</h2>
-            <p>This Lidar Grade Analysis tool is a lightweight web application designed to provide quick elevation analysis for any area in Vermont. Users can define an area of interest by drawing a polygon on the map and the application will identify the highest and lowest ground elevation points along the perimeter of that polygon. This is useful for tasks such as preliminary site analysis, drainage planning, and understanding the local topography around a structure.</p>
+            <div id="docs-content" class="hidden prose max-w-none docs-content">
+                <h2>About This Application</h2>
+                <p>This Lidar Grade Analysis tool is a lightweight web application designed to provide quick elevation analysis for any area in Vermont. Users can define an area of interest by drawing a polygon on the map and the application will identify the highest and lowest ground elevation points along the perimeter of that polygon. This is useful for tasks such as preliminary site analysis, drainage planning, and understanding the local topography around a structure.</p>
 
-            <h2>Technology Stack</h2>
-            <p>This application is built entirely with client-side technologies, meaning it runs completely within your web browser without needing a dedicated backend server for analysis.</p>
-            <ul>
-                <li><strong>Mapping Library:</strong> <a href="https://leafletjs.com/" target="_blank">Leaflet.js</a> is used for the interactive map interface, along with the <a href="https://github.com/Leaflet/Leaflet.draw" target="_blank">Leaflet.draw</a> plugin for the polygon drawing tools.</li>
-                <li><strong>Geospatial Data Processing:</strong> The core of the Lidar analysis is powered by <a href="https://github.com/geotiffjs/geotiff.js" target="_blank">geotiff.js</a>, which can efficiently read data from Cloud-Optimized GeoTIFFs (COGs). Coordinate transformations are handled by <a href="https://github.com/proj4js/proj4js" target="_blank">proj4.js</a>.</li>
-                <li><strong>Styling and Layout:</strong> The user interface is styled using <a href="https://tailwindcss.com/" target="_blank">Tailwind CSS</a> for a clean and responsive design.</li>
-            </ul>
+                <h2>Technology Stack</h2>
+                <p>This application is built entirely with client-side technologies, meaning it runs completely within your web browser without needing a dedicated backend server for analysis.</p>
+                <ul>
+                    <li><strong>Mapping Library:</strong> <a href="https://leafletjs.com/" target="_blank">Leaflet.js</a> is used for the interactive map interface, along with the <a href="https://github.com/Leaflet/Leaflet.draw" target="_blank">Leaflet.draw</a> plugin for the polygon drawing tools.</li>
+                    <li><strong>Geospatial Data Processing:</strong> The core of the Lidar analysis is powered by <a href="https://github.com/geotiffjs/geotiff.js" target="_blank">geotiff.js</a>, which can efficiently read data from Cloud-Optimized GeoTIFFs (COGs). Coordinate transformations are handled by <a href="https://github.com/proj4js/proj4js" target="_blank">proj4.js</a>.</li>
+                    <li><strong>Styling and Layout:</strong> The user interface is styled using <a href="https://tailwindcss.com/" target="_blank">Tailwind CSS</a> for a clean and responsive design.</li>
+                </ul>
 
-            <h2>Data Sources</h2>
-            <p>All data used in this application is publicly available from the Vermont Center for Geographic Information (VCGI) and other agencies.</p>
-            <ul>
-                <li><strong>Elevation Data:</strong> The analysis is performed on the <code>STATEWIDE_2013-2017_70cm_DEMHF.tif</code> Digital Elevation Model (DEM). This is a high-resolution, 70cm bare-earth raster covering the state of Vermont. It is accessed as a Cloud-Optimized GeoTIFF (COG) hosted on AWS S3.</li>
-                <li><strong>Building Footprints:</strong> The optional building footprints layer is loaded on-demand from the <code>FS_VCGI_OPENDATA_STRUCTURES_POLY_SP_v1</code> ArcGIS FeatureServer. To improve performance, footprints are only fetched for the visible map area and only when zoomed in past level 16.</li>
-                <li><strong>FEMA Cross Sections:</strong> The FEMA Cross Sections layer is loaded from the <code>OPENDATA_ANR_EMERGENCY_SP_NOCACHE_v2</code> ArcGIS MapServer.</li>
-                <li><strong>FEMA Flood Hazard Zones:</strong> Flood hazard data is loaded dynamically from the official <a href="https://hazards-fema.maps.arcgis.com/home/item.html?id=35e0a4cbf41048728e4009c1424473f0" target="_blank">FEMA National Flood Hazard Layer (NFHL)</a> data service.</li>
-                <li><strong>Address Search:</strong> Address lookup is provided by the <code>GCS_E911_COMPOSITE_SP_v2</code> GeocodeServer, also hosted by VCGI.</li>
-            </ul>
+                <h2>Data Sources</h2>
+                <p>All data used in this application is publicly available from the Vermont Center for Geographic Information (VCGI) and other agencies.</p>
+                <ul>
+                    <li><strong>Elevation Data:</strong> <a href="https://s3.us-east-2.amazonaws.com/vtopendata-prd/Elevation/STATEWIDE_2013-2017_70cm_DEMHF.tif" target="_blank">STATEWIDE_2013-2017_70cm_DEMHF.tif</a> Digital Elevation Model (DEM). This is a high-resolution, 70cm bare-earth raster covering the state of Vermont, accessed as a Cloud-Optimized GeoTIFF (COG).</li>
+                    <li><strong>Building Footprints:</strong> The optional <a href="https://geodata.vermont.gov/datasets/vcgi::vt-data-structures-and-buildings-2016/about" target="_blank">building footprints layer</a> is loaded on-demand from the FS_VCGI_OPENDATA_STRUCTURES_POLY_SP_v1 ArcGIS FeatureServer.</li>
+                    <li><strong>FEMA Cross Sections:</strong> The <a href="https://geodata.vermont.gov/datasets/anr-emergency-management-data/about" target="_blank">FEMA Cross Sections layer</a> is loaded from the OPENDATA_ANR_EMERGENCY_SP_NOCACHE_v2 ArcGIS MapServer.</li>
+                    <li><strong>FEMA Flood Hazard Zones:</strong> Flood hazard data is loaded dynamically from the official <a href="https://hazards-fema.maps.arcgis.com/home/item.html?id=35e0a4cbf41048728e4009c1424473f0" target="_blank">FEMA National Flood Hazard Layer (NFHL)</a> data service.</li>
+                    <li><strong>Address Search:</strong> Address lookup is provided by the <a href="https://geodata.vermont.gov/datasets/vcgi::vt-e911-address-points/about" target="_blank">GCS_E911_COMPOSITE_SP_v2 GeocodeServer</a>, also hosted by VCGI.</li>
+                </ul>
+            </div>
         </div>
     </div>
 
@@ -226,6 +235,7 @@
             const docsTab = document.getElementById('docs-tab');
             const mapContent = document.getElementById('map-content');
             const docsContent = document.getElementById('docs-content');
+            const tabContainer = document.getElementById('tab-container');
 
             // --- Search Control ---
             const SearchControl = L.Control.extend({
@@ -269,7 +279,7 @@
                 onEachFeature: function(feature, layer) {
                     if (feature.properties) {
                         const { XS_LTR, XS_LN_ID, WSEL_REG } = feature.properties;
-                        const label = `${XS_LTR || ''}:${XS_LN_ID || ''}: ${WSEL_REG || ''}`;
+                        const label = `${XS_LTR || ''} ${XS_LN_ID || ''}: (${WSEL_REG || ''})`;
                         layer.bindTooltip(label, {
                             permanent: true,
                             direction: 'center',
@@ -376,15 +386,24 @@
             const debouncedLoadFemaFlood = debounce(() => loadDynamicLayer(femaFloodLayer, femaFloodUrlBase), 500);
 
             // --- Event Listeners ---
+            let mapContentHeight = 0;
+            setTimeout(() => {
+                if (mapContent) mapContentHeight = mapContent.offsetHeight;
+            }, 500);
+
             mapTab.addEventListener('click', () => {
-                mapContent.classList.remove('hidden');
+                tabContainer.style.minHeight = '';
                 docsContent.classList.add('hidden');
+                mapContent.classList.remove('hidden');
                 mapTab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600';
                 docsTab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
-                map.invalidateSize();
+                setTimeout(() => map.invalidateSize(), 10);
             });
             
             docsTab.addEventListener('click', () => {
+                if (mapContentHeight > 0) {
+                    tabContainer.style.minHeight = `${mapContentHeight}px`;
+                }
                 mapContent.classList.add('hidden');
                 docsContent.classList.remove('hidden');
                 docsTab.className = 'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600';
